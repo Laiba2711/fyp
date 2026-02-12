@@ -1,0 +1,272 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@source "../index.html";
+@source "./**/*.{js,jsx,ts,tsx}";
+
+@theme {
+  --color-primary-50: #fef2f2;
+  --color-primary-100: #fee2e2;
+  --color-primary-200: #fecaca;
+  --color-primary-300: #fca5a5;
+  --color-primary-400: #f87171;
+  --color-primary-500: #e63946;
+  --color-primary-600: #dc2626;
+  --color-primary-700: #b91c1c;
+  --color-primary-800: #991b1b;
+  --color-primary-900: #7f1d1d;
+  
+  --color-dark-100: #1a1a2e;
+  --color-dark-200: #16213e;
+  --color-dark-300: #0f3460;
+  
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  
+  --color-bg-light: #ffffff;
+  --color-bg-dark: #0f172a;
+  --color-text-light: #1f2937;
+  --color-text-dark: #f3f4f6;
+  --color-card-light: #ffffff;
+  --color-card-dark: #1e293b;
+  --color-border-light: #e5e7eb;
+  --color-border-dark: #374151;
+  
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: var(--font-family-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    transition: all 0.3s;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-primary {
+    background-color: var(--color-primary-500);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background-color: var(--color-primary-600);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(230, 57, 70, 0.4), 0 0 15px rgba(230, 57, 70, 0.5);
+  }
+
+  .btn-outline {
+    background-color: transparent;
+    border: 2px solid var(--color-dark-100);
+    color: var(--color-dark-100);
+  }
+
+  .btn-outline:hover {
+    background-color: var(--color-dark-100);
+    color: white;
+  }
+
+  .btn-secondary {
+    background-color: var(--color-dark-100);
+    color: white;
+  }
+
+  .btn-secondary:hover {
+    background-color: var(--color-dark-200);
+  }
+
+  .input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    outline: none;
+    transition: all 0.3s;
+  }
+
+  .input:focus {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.1);
+  }
+
+  .card {
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s;
+  }
+
+  .card:hover {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    transform: translateY(-5px);
+  }
+  
+  /* Neon Effects */
+  .neon-card {
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .neon-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0.75rem;
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  .neon-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.2);
+  }
+  
+  .neon-glow {
+    position: relative;
+    transition: all 0.3s ease;
+  }
+  
+  .neon-glow:hover {
+    text-shadow: 0 0 10px rgba(230, 57, 70, 0.7);
+    box-shadow: 0 0 15px rgba(230, 57, 70, 0.5);
+  }
+  
+  .floating-element {
+    transition: transform 0.3s ease;
+  }
+  
+  .floating-element:hover {
+    transform: translateY(-8px) scale(1.02);
+  }
+  
+  .neon-border {
+    position: relative;
+  }
+  
+  .neon-border::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 2px solid transparent;
+    border-radius: inherit;
+    transition: all 0.3s ease;
+    z-index: -1;
+  }
+  
+  .neon-border:hover::after {
+    border: 2px solid #e63946;
+    box-shadow: 0 0 15px rgba(230, 57, 70, 0.6);
+  }
+}
+
+/* Dark Mode Styles */
+@layer utilities {
+  .dark .card {
+    background-color: var(--color-card-dark);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  
+  .dark .card:hover {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+  }
+  
+  .dark .btn-outline {
+    border-color: var(--color-gray-500);
+    color: var(--color-gray-200);
+  }
+  
+  .dark .btn-outline:hover {
+    background-color: var(--color-gray-700);
+    color: white;
+  }
+  
+  .dark .input {
+    background-color: var(--color-gray-800);
+    border-color: var(--color-gray-600);
+    color: var(--color-gray-100);
+  }
+  
+  .dark .input:focus {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.2);
+  }
+  
+  .dark body {
+    background-color: var(--color-bg-dark);
+    color: var(--color-text-dark);
+  }
+  
+  .dark .bg-gray-50 {
+    background-color: var(--color-gray-900);
+  }
+  
+  /* Neon Effects in Dark Mode */
+  .dark .neon-card::before {
+    box-shadow: 0 0 15px rgba(255, 0, 204, 0.3);
+  }
+  
+  .dark .neon-card:hover::before {
+    box-shadow: 0 0 25px rgba(255, 0, 204, 0.6);
+  }
+  
+  .dark .neon-glow {
+    text-shadow: 0 0 10px rgba(255, 0, 204, 0.5);
+  }
+  
+  .dark .neon-glow:hover {
+    text-shadow: 0 0 20px rgba(255, 0, 204, 0.8);
+    box-shadow: 0 0 20px rgba(255, 0, 204, 0.6);
+  }
+}
+
+/* Neon Effects in Light Mode */
+.neon-card::before {
+  box-shadow: 0 0 10px rgba(230, 57, 70, 0.2);
+}
+
+.neon-card:hover::before {
+  box-shadow: 0 0 20px rgba(230, 57, 70, 0.5);
+}
+
+.neon-glow {
+  text-shadow: 0 0 8px rgba(230, 57, 70, 0.3);
+}
+
+.neon-glow:hover {
+  text-shadow: 0 0 15px rgba(230, 57, 70, 0.6);
+  box-shadow: 0 0 15px rgba(230, 57, 70, 0.4);
+}
