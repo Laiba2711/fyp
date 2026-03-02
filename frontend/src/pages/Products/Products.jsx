@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { FiFilter, FiX, FiChevronDown } from 'react-icons/fi';
+import { useSearchParams, Link } from 'react-router-dom';
+import { FiFilter, FiX, FiChevronDown, FiPlus } from 'react-icons/fi';
 import { productsAPI } from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 import ProductCard from '../../components/ProductCard/ProductCard';
 
 const Products = () => {
+  const { isAdmin } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +26,7 @@ const Products = () => {
     tags: searchParams.get('tags') || '',
     brand: searchParams.get('brand') || '',
     minRating: searchParams.get('minRating') || '',
+    inStock: searchParams.get('inStock') === 'true',
   });
 
   useEffect(() => {
@@ -70,27 +73,22 @@ const Products = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const params = {};
+      const params = {
+        page: filters.page,
+        limit: 12,
+        sort: filters.sort,
+        q: filters.search
+      };
+
       if (filters.category) params.category = filters.category;
       if (filters.minPrice) params.minPrice = filters.minPrice;
       if (filters.maxPrice) params.maxPrice = filters.maxPrice;
-      if (filters.sort) params.sort = filters.sort;
-      if (filters.search) params.search = filters.search;
-      if (filters.tags) params.tags = filters.tags;
       if (filters.brand) params.brand = filters.brand;
       if (filters.minRating) params.minRating = filters.minRating;
-      params.page = filters.page;
-      params.limit = 12;
+      if (filters.inStock) params.inStock = true;
 
-      // Use advanced search if any advanced filters are present
-      const hasAdvancedFilters = filters.tags || filters.brand || filters.minRating;
-      let response;
-      if (hasAdvancedFilters) {
-        response = await productsAPI.searchAdvanced(params);
-      } else {
-        response = await productsAPI.getAll(params);
-      }
-      
+      const response = await productsAPI.smartSearch(params);
+
       setProducts(response.data.products);
       setTotalPages(response.data.pages);
       setTotal(response.data.total);
@@ -125,6 +123,7 @@ const Products = () => {
       tags: '',
       brand: '',
       minRating: '',
+      inStock: false,
     });
     setSearchParams({});
   };
@@ -163,17 +162,17 @@ const Products = () => {
   ];
 
   const dynamicPriceRanges = priceStats ? [
-    { min: '', max: '', label: `All Prices (Rs. ${priceStats.min} - Rs. ${priceStats.max})` },
-    { min: priceStats.min.toString(), max: Math.floor(priceStats.avg).toString(), label: `Budget (Under Rs. ${Math.floor(priceStats.avg)})` },
-    { min: Math.floor(priceStats.avg).toString(), max: Math.ceil(priceStats.avg * 1.5).toString(), label: `Mid-range (Rs. ${Math.floor(priceStats.avg)} - Rs. ${Math.ceil(priceStats.avg * 1.5)})` },
-    { min: Math.ceil(priceStats.avg * 1.5).toString(), max: priceStats.max.toString(), label: `Premium (Above Rs. ${Math.ceil(priceStats.avg * 1.5)})` },
+    { min: '', max: '', label: `All Prices (Rs. ${priceStats.minPrice} - Rs. ${priceStats.maxPrice})` },
+    { min: priceStats.minPrice.toString(), max: Math.floor(priceStats.avgPrice).toString(), label: `Budget (Under Rs. ${Math.floor(priceStats.avgPrice)})` },
+    { min: Math.floor(priceStats.avgPrice).toString(), max: Math.ceil(priceStats.avgPrice * 1.5).toString(), label: `Mid-range (Rs. ${Math.floor(priceStats.avgPrice)} - Rs. ${Math.ceil(priceStats.avgPrice * 1.5)})` },
+    { min: Math.ceil(priceStats.avgPrice * 1.5).toString(), max: priceStats.maxPrice.toString(), label: `Premium (Above Rs. ${Math.ceil(priceStats.avgPrice * 1.5)})` },
   ] : null;
 
   const activeFiltersCount = [
-    filters.category, 
-    filters.minPrice || filters.maxPrice, 
-    filters.tags, 
-    filters.brand, 
+    filters.category,
+    filters.minPrice || filters.maxPrice,
+    filters.tags,
+    filters.brand,
     filters.minRating
   ].filter(Boolean).length;
 
@@ -185,10 +184,19 @@ const Products = () => {
           {filters.search
             ? `Search Results for "${filters.search}"`
             : filters.category
-            ? `${filters.category.charAt(0).toUpperCase() + filters.category.slice(1)}'s Collection`
-            : 'All Products'}
+              ? `${filters.category.charAt(0).toUpperCase() + filters.category.slice(1)}'s Collection`
+              : 'All Products'}
         </h1>
-        <p className="text-gray-300">{total} products found</p>
+        <p className="text-gray-300 mb-4">{total} products found</p>
+        {isAdmin && (
+          <Link
+            to="/admin"
+            state={{ activeTab: 'products', showProductForm: true }}
+            className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-6 py-2 rounded-full font-medium transition-colors shadow-lg shadow-primary-500/30"
+          >
+            <FiPlus /> Add New Product
+          </Link>
+        )}
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -204,9 +212,8 @@ const Products = () => {
 
           {/* Sidebar Filters */}
           <aside
-            className={`lg:w-72 bg-white rounded-xl p-6 shadow-sm h-fit lg:sticky lg:top-24 neon-card ${
-              showFilters ? 'block' : 'hidden lg:block'
-            }`}
+            className={`lg:w-72 bg-white rounded-xl p-6 shadow-sm h-fit lg:sticky lg:top-24 neon-card ${showFilters ? 'block' : 'hidden lg:block'
+              }`}
           >
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
               <h3 className="text-lg font-semibold text-gray-800 neon-glow">Filters</h3>
@@ -263,13 +270,27 @@ const Products = () => {
               </div>
             </div>
 
+            {/* Availability Filter */}
+            <div className="mb-6">
+              <h4 className="font-semibold text-gray-800 mb-4">Availability</h4>
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={filters.inStock || false}
+                  onChange={(e) => updateFilters('inStock', e.target.checked)}
+                  className="w-4 h-4 rounded accent-primary-500"
+                />
+                <span className="text-gray-600 group-hover:text-primary-500 transition-colors">In Stock Only</span>
+              </label>
+            </div>
+
             {/* Brand Filter */}
             <div className="mb-6">
               <h4 className="font-semibold text-gray-800 mb-4">Brand</h4>
               <input
                 type="text"
                 placeholder="Search brand..."
-                value={filters.brand}
+                value={filters.brand || ''}
                 onChange={(e) => updateFilters('brand', e.target.value)}
                 className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:border-primary-500 neon-glow"
               />
@@ -369,7 +390,7 @@ const Products = () => {
               <>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
                   {products.map((product) => (
-                    <ProductCard key={product._id} product={product} />
+                    <ProductCard key={product._id} product={product} onDelete={() => fetchProducts()} />
                   ))}
                 </div>
 
@@ -386,11 +407,10 @@ const Products = () => {
                     {[...Array(totalPages)].map((_, index) => (
                       <button
                         key={index + 1}
-                        className={`px-4 py-2 rounded-lg transition-colors neon-glow ${
-                          filters.page === index + 1
-                            ? 'bg-primary-500 text-white'
-                            : 'border border-gray-200 hover:border-primary-500 hover:text-primary-500'
-                        }`}
+                        className={`px-4 py-2 rounded-lg transition-colors neon-glow ${filters.page === index + 1
+                          ? 'bg-primary-500 text-white'
+                          : 'border border-gray-200 hover:border-primary-500 hover:text-primary-500'
+                          }`}
                         onClick={() => handlePageChange(index + 1)}
                       >
                         {index + 1}
@@ -418,7 +438,7 @@ const Products = () => {
           </main>
         </div>
       </div>
-      
+
       {/* Category Statistics Visualization */}
       {categoryStats.length > 0 && (
         <div className="max-w-7xl mx-auto px-4 py-12">

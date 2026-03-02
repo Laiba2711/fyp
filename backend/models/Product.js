@@ -98,6 +98,32 @@ const productSchema = new mongoose.Schema({
 });
 
 // Create index for search
-productSchema.index({ name: 'text', description: 'text', brand: 'text', tags: 'text' });
+// Create optimized index for smart search
+productSchema.index(
+  {
+    name: 'text',
+    brand: 'text',
+    category: 'text',
+    tags: 'text',
+    description: 'text'
+  },
+  {
+    weights: {
+      name: 10,
+      brand: 5,
+      category: 3,
+      tags: 2,
+      description: 1
+    },
+    name: "SmartSearchIndex"
+  }
+);
+
+// Supplementary indices for optimized filtering
+productSchema.index({ category: 1, price: 1 });
+productSchema.index({ brand: 1 });
+productSchema.index({ price: 1 });
+productSchema.index({ rating: -1 });
+productSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Product', productSchema);

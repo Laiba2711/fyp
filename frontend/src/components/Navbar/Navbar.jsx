@@ -1,25 +1,61 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiHeart, FiLogOut } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useTheme } from '../../context/ThemeContext';
+import { productsAPI } from '../../utils/api';
+import SearchSuggestions from './SearchSuggestions';
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMoreDropdownOpen, setIsMoreDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef(null);
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const { cartCount } = useCart();
   const { theme, toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (searchQuery.trim().length >= 2) {
+        try {
+          const { data } = await productsAPI.getSuggestions(searchQuery);
+          setSuggestions(data);
+          setShowSuggestions(true);
+        } catch (error) {
+          console.error('Error fetching suggestions:', error);
+        }
+      } else {
+        setSuggestions(null);
+        setShowSuggestions(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(fetchSuggestions, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/products?search=${encodeURIComponent(searchQuery)}`);
       setSearchQuery('');
+      setShowSuggestions(false);
     }
   };
 
@@ -68,7 +104,7 @@ const Navbar = () => {
                 More
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 transition-all group-hover:w-full"></span>
               </button>
-              
+
               {isMoreDropdownOpen && (
                 <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 border border-gray-100 z-50">
                   <Link
@@ -112,12 +148,13 @@ const Navbar = () => {
           </div>
 
           {/* Search Bar */}
-          <form onSubmit={handleSearch} className="hidden md:flex items-center flex-1 max-w-md mx-4">
+          <form onSubmit={handleSearch} className="hidden md:flex items-center flex-1 max-w-md mx-4 relative" ref={searchRef}>
             <div className="relative w-full">
               <input
                 type="text"
                 placeholder="Search products..."
                 value={searchQuery}
+                onFocus={() => searchQuery.length >= 2 && setShowSuggestions(true)}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-4 pr-10 py-2.5 bg-gray-100 rounded-full text-sm outline-none focus:ring-2 focus:ring-primary-500/20 transition-all"
               />
@@ -125,6 +162,13 @@ const Navbar = () => {
                 <FiSearch />
               </button>
             </div>
+            {showSuggestions && (
+              <SearchSuggestions
+                suggestions={suggestions}
+                query={searchQuery}
+                onSelect={() => setShowSuggestions(false)}
+              />
+            )}
           </form>
 
           {/* Icons */}
@@ -223,21 +267,33 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile Menu */}
       <div className={`lg:hidden bg-white border-t border-gray-100 ${isMenuOpen ? 'block' : 'hidden'}`}>
         <div className="px-4 py-4 space-y-4">
-          <form onSubmit={handleSearch} className="flex">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-4 py-3 bg-gray-100 rounded-l-full outline-none"
-            />
-            <button type="submit" className="px-5 bg-primary-500 text-white rounded-r-full">
-              <FiSearch />
-            </button>
-          </form>
+          <div className="relative" ref={searchRef}>
+            <form onSubmit={handleSearch} className="flex">
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={searchQuery}
+                onFocus={() => searchQuery.length >= 2 && setShowSuggestions(true)}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 px-4 py-3 bg-gray-100 rounded-l-full outline-none"
+              />
+              <button type="submit" className="px-5 bg-primary-500 text-white rounded-r-full">
+                <FiSearch />
+              </button>
+            </form>
+            {showSuggestions && (
+              <SearchSuggestions
+                suggestions={suggestions}
+                query={searchQuery}
+                onSelect={() => {
+                  setShowSuggestions(false);
+                  setIsMenuOpen(false);
+                }}
+              />
+            )}
+          </div>
 
           {categories.map((category) => (
             <Link
@@ -249,7 +305,7 @@ const Navbar = () => {
               {category.name}
             </Link>
           ))}
-          
+
           {/* Mobile More Dropdown */}
           <div className="border-b border-gray-100">
             <button
@@ -259,7 +315,7 @@ const Navbar = () => {
               More
               <span className={`${isMoreDropdownOpen ? 'rotate-180' : ''} transition-transform`}>▼</span>
             </button>
-            
+
             {isMoreDropdownOpen && (
               <div className="pl-4 space-y-2 py-2 border-t border-gray-100">
                 <Link

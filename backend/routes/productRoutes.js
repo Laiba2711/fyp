@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/Product');
+const SearchLog = require('../models/SearchLog');
 const { protect, admin } = require('../middleware/authMiddleware');
 
 // @desc    Get all products with filtering and pagination
@@ -94,14 +95,277 @@ router.get('/featured', async (req, res) => {
   }
 });
 
+// @desc    Get price range statistics
+// @route   GET /api/products/price-stats
+// @access  Public
+router.get('/price-stats', async (req, res) => {
+  try {
+    const stats = await Product.aggregate([
+      { $match: { isActive: true } },
+      {
+        $group: {
+          _id: null,
+          minPrice: { $min: '$price' },
+          maxPrice: { $max: '$price' },
+          avgPrice: { $avg: '$price' },
+          totalProducts: { $sum: 1 }
+        }
+      }
+    ]);
+
+    res.json(stats[0] || { minPrice: 0, maxPrice: 0, avgPrice: 0, totalProducts: 0 });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Get all categories with product counts
+// @route   GET /api/products/categories
+// @access  Public
+router.get('/categories/stats', async (req, res) => {
+  try {
+    const categories = await Product.aggregate([
+      { $match: { isActive: true } },
+      {
+        $group: {
+          _id: '$category',
+          count: { $sum: 1 },
+          avgPrice: { $avg: '$price' },
+          minPrice: { $min: '$price' },
+          maxPrice: { $max: '$price' }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Smart Search with fuzzy matching and typo tolerance
+// @route   GET /api/products/smart-search
+// @access  Public
+router.get('/smart-search', async (req, res) => {
+  try {
+    const {
+      q,
+      category,
+      brand,
+      minPrice,
+      maxPrice,
+      minRating,
+      inStock,
+      sort = 'newest',
+      page = 1,
+      limit = 20
+    } = req.query;
+
+    const pageSize = Number(limit);
+    const skip = (Number(page) - 1) * pageSize;
+
+    // 1. Build Base Match Filter
+    const matchFilter = { isActive: true };
+
+    // Handle Search Query
+    if (q) {
+      const searchTerms = q.trim().split(/\s+/);
+      matchFilter.$or = [
+        { $text: { $search: q } },
+        { name: { $regex: q, $options: 'i' } },
+        { brand: { $regex: q, $options: 'i' } },
+        ...searchTerms.map(term => ({
+          $or: [
+            { name: { $regex: term.split('').join('.*'), $options: 'i' } },
+            { brand: { $regex: term.split('').join('.*'), $options: 'i' } }
+          ]
+        }))
+      ];
+    }
+
+    // Apply Advanced Filters
+    if (category) matchFilter.category = category;
+    if (brand) matchFilter.brand = brand;
+    if (inStock === 'true') matchFilter.stock = { $gt: 0 };
+    if (minRating) matchFilter.rating = { $gte: Number(minRating) };
+
+    if (minPrice || maxPrice) {
+      matchFilter.price = {};
+      if (minPrice) matchFilter.price.$gte = Number(minPrice);
+      if (maxPrice) matchFilter.price.$lte = Number(maxPrice);
+    }
+
+    // 2. Determine Sort Strategy
+    let sortStage = { createdAt: -1 };
+    if (sort === 'price-asc') sortStage = { price: 1 };
+    else if (sort === 'price-desc') sortStage = { price: -1 };
+    else if (sort === 'rating') sortStage = { rating: -1 };
+    else if (q) sortStage = { totalScore: -1, createdAt: -1 };
+
+    // 3. Construct and Execute Pipeline
+    const pipeline = [
+      { $match: matchFilter }
+    ];
+
+    // Only add score metadata if we are doing a text search
+    if (q) {
+      pipeline.push({
+        $addFields: {
+          score: { $meta: "textScore" },
+          exactMatchBoost: {
+            $cond: [
+              {
+                $or: [
+                  { $regexMatch: { input: "$name", regex: q || "", options: "i" } },
+                  { $regexMatch: { input: "$brand", regex: q || "", options: "i" } }
+                ]
+              },
+              10,
+              0
+            ]
+          }
+        }
+      });
+      pipeline.push({
+        $addFields: {
+          totalScore: { $add: [{ $ifNull: ["$score", 0] }, "$exactMatchBoost"] }
+        }
+      });
+    }
+
+    pipeline.push(
+      { $sort: sortStage },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [{ $skip: skip }, { $limit: pageSize }]
+        }
+      }
+    );
+
+    const results = await Product.aggregate(pipeline);
+    const products = results[0].data;
+    const total = results[0].metadata[0]?.total || 0;
+
+    // Log the search (Async, don't wait for it to finish)
+    if (q) {
+      SearchLog.create({
+        query: q,
+        resultsCount: total,
+        user: req.user?._id || null, // req.user might be available if using optional auth
+        source: 'web'
+      }).catch(err => console.error('Error logging search:', err));
+    }
+
+    res.json({
+      products,
+      page: Number(page),
+      pages: Math.ceil(total / pageSize),
+      total
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Get related products by tags
+// @route   GET /api/products/tag/:tag
+// @access  Public
+router.get('/tag/:tag', async (req, res) => {
+  try {
+    const products = await Product.find({
+      tags: req.params.tag,
+      isActive: true
+    }).limit(12);
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Get products by brand
+// @route   GET /api/products/brand/:brand
+// @access  Public
+router.get('/brand/:brand', async (req, res) => {
+  try {
+    const products = await Product.find({
+      brand: req.params.brand,
+      isActive: true
+    }).limit(12);
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Get search suggestions
+// @route   GET /api/products/search/suggestions
+// @access  Public
+router.get('/search/suggestions', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) {
+      return res.json({ products: [], categories: [], brands: [] });
+    }
+
+    const suggestions = await Product.aggregate([
+      {
+        $match: {
+          isActive: true,
+          $or: [
+            { name: { $regex: q, $options: 'i' } },
+            { category: { $regex: q, $options: 'i' } },
+            { brand: { $regex: q, $options: 'i' } }
+          ]
+        }
+      },
+      {
+        $facet: {
+          products: [
+            { $limit: 5 },
+            { $project: { name: 1, _id: 1, image: { $arrayElemAt: ["$images", 0] }, price: 1 } }
+          ],
+          categories: [
+            { $group: { _id: "$category" } },
+            { $limit: 3 },
+            { $project: { name: "$_id", _id: 0 } }
+          ],
+          brands: [
+            { $group: { _id: "$brand" } },
+            { $limit: 3 },
+            { $project: { name: "$_id", _id: 0 } }
+          ]
+        }
+      }
+    ]);
+
+    const result = suggestions[0];
+
+    // Format popular searches (mocking with combinations of found categories and brands)
+    const popular = [];
+    if (result.categories.length > 0) popular.push(`${result.categories[0].name} fashion`);
+    if (result.brands.length > 0) popular.push(`Latest ${result.brands[0].name}`);
+
+    res.json({
+      products: result.products,
+      categories: result.categories.map(c => c.name),
+      brands: result.brands.map(b => b.name),
+      popular
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // @desc    Get products by category
 // @route   GET /api/products/category/:category
 // @access  Public
 router.get('/category/:category', async (req, res) => {
   try {
-    const products = await Product.find({ 
-      category: req.params.category, 
-      isActive: true 
+    const products = await Product.find({
+      category: req.params.category,
+      isActive: true
     }).limit(12);
     res.json(products);
   } catch (error) {
@@ -247,151 +511,51 @@ router.post('/:id/reviews', protect, async (req, res) => {
   }
 });
 
-// @desc    Get product recommendations (AI-like based on category and tags)
-// @route   GET /api/products/:id/recommendations
+// @desc    Get AI-based Smart Suggestions (Upsell / Cross-sell)
+// @route   GET /api/products/:id/smart-suggestions
 // @access  Public
-router.get('/:id/recommendations', async (req, res) => {
+router.get('/:id/smart-suggestions', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
-    
-    if (product) {
-      const recommendations = await Product.find({
-        _id: { $ne: product._id },
-        isActive: true,
-        $or: [
-          { category: product.category },
-          { tags: { $in: product.tags } },
-        ],
-      }).limit(6);
+    if (!product) return res.status(404).json({ message: 'Product not found' });
 
-      res.json(recommendations);
-    } else {
-      res.status(404).json({ message: 'Product not found' });
-    }
+    // 1. Related Products (Same category, similar logic)
+    const related = await Product.find({
+      category: product.category,
+      _id: { $ne: product._id },
+      isActive: true,
+      stock: { $gt: 0 }
+    }).limit(4);
+
+    // 2. Upgrades (Upsell - Same category, higher price, higher/equal rating)
+    const upgrades = await Product.find({
+      category: product.category,
+      _id: { $ne: product._id },
+      price: { $gt: product.price },
+      rating: { $gte: product.rating },
+      isActive: true,
+      stock: { $gt: 0 }
+    }).sort({ price: 1 }).limit(4);
+
+    // 3. Frequently Bought Together (Cross-sell - Different category, shared tags)
+    const crossSell = await Product.find({
+      category: { $ne: product.category },
+      isActive: true,
+      stock: { $gt: 0 },
+      tags: { $in: product.tags }
+    }).sort({ numReviews: -1 }).limit(4);
+
+    res.json({
+      related,
+      upgrades,
+      crossSell
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// @desc    Get all categories with product counts
-// @route   GET /api/products/categories
-// @access  Public
-router.get('/categories/stats', async (req, res) => {
-  try {
-    const categories = await Product.aggregate([
-      { $match: { isActive: true } },
-      {
-        $group: {
-          _id: '$category',
-          count: { $sum: 1 },
-          avgPrice: { $avg: '$price' },
-          minPrice: { $min: '$price' },
-          maxPrice: { $max: '$price' }
-        }
-      },
-      { $sort: { count: -1 } }
-    ]);
 
-    res.json(categories);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
 
-// @desc    Get price range statistics
-// @route   GET /api/products/price-stats
-// @access  Public
-router.get('/price-stats', async (req, res) => {
-  try {
-    const stats = await Product.aggregate([
-      { $match: { isActive: true } },
-      {
-        $group: {
-          _id: null,
-          minPrice: { $min: '$price' },
-          maxPrice: { $max: '$price' },
-          avgPrice: { $avg: '$price' },
-          totalProducts: { $sum: 1 }
-        }
-      }
-    ]);
-
-    res.json(stats[0] || { minPrice: 0, maxPrice: 0, avgPrice: 0, totalProducts: 0 });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// @desc    Get related products by tags
-// @route   GET /api/products/tag/:tag
-// @access  Public
-router.get('/tag/:tag', async (req, res) => {
-  try {
-    const products = await Product.find({ 
-      tags: req.params.tag, 
-      isActive: true 
-    }).limit(12);
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// @desc    Get products by brand
-// @route   GET /api/products/brand/:brand
-// @access  Public
-router.get('/brand/:brand', async (req, res) => {
-  try {
-    const products = await Product.find({ 
-      brand: req.params.brand, 
-      isActive: true 
-    }).limit(12);
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// @desc    Search products with advanced filtering
-// @route   GET /api/products/search
-// @access  Public
-router.get('/search/advanced', async (req, res) => {
-  try {
-    const { q, category, brand, minPrice, maxPrice, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
-    
-    let query = { isActive: true };
-    
-    // Text search
-    if (q) {
-      query.$text = { $search: q };
-    }
-    
-    // Category filter
-    if (category) {
-      query.category = category;
-    }
-    
-    // Brand filter
-    if (brand) {
-      query.brand = brand;
-    }
-    
-    // Price range
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) query.price.$gte = Number(minPrice);
-      if (maxPrice) query.price.$lte = Number(maxPrice);
-    }
-    
-    // Sorting
-    let sort = {};
-    sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
-    
-    const products = await Product.find(query).sort(sort).limit(20);
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
 
 module.exports = router;

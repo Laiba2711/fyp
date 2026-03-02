@@ -1,11 +1,37 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiTrash2, FiMinus, FiPlus, FiShoppingBag, FiArrowLeft } from 'react-icons/fi';
+import { FiTrash2, FiMinus, FiPlus, FiShoppingBag, FiArrowLeft, FiTag, FiZap, FiBox } from 'react-icons/fi';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
+import { productsAPI } from '../../utils/api';
+import ProductCard from '../../components/ProductCard/ProductCard';
 
 const Cart = () => {
   const { cart, updateQuantity, removeFromCart, clearCart, loading } = useCart();
   const { isAuthenticated } = useAuth();
+  const [suggestions, setSuggestions] = useState({ related: [], upgrades: [], crossSell: [] });
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+
+  useEffect(() => {
+    if (cart.items.length > 0) {
+      fetchSuggestions();
+    }
+  }, [cart.items.length]);
+
+  const fetchSuggestions = async () => {
+    try {
+      setSuggestionsLoading(true);
+      // Base suggestions on the last item added to cart
+      const lastItem = cart.items[cart.items.length - 1];
+      const productId = lastItem.product._id || lastItem.product;
+      const { data } = await productsAPI.getSmartSuggestions(productId);
+      setSuggestions(data);
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
 
   const subtotal = cart.totalPrice || cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const shipping = subtotal > 5000 ? 0 : 200;
@@ -165,6 +191,62 @@ const Cart = () => {
             </div>
           </div>
         </div>
+
+        {/* AI Recommendations Section */}
+        {cart.items.length > 0 && !suggestionsLoading && (
+          <div className="mt-16 space-y-12 pb-12">
+            {/* Cross-Sell: Frequently Bought Together */}
+            {suggestions.crossSell.length > 0 && (
+              <div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <FiBox size={20} />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800">Frequently Bought Together</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {suggestions.crossSell.map(product => (
+                    <ProductCard key={product._id} product={product} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upsell: Premium Upgrades */}
+            {suggestions.upgrades.length > 0 && (
+              <div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                    <FiZap size={20} />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800">Recommended Premium Upgrades</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {suggestions.upgrades.map(product => (
+                    <ProductCard key={product._id} product={product} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Related Products */}
+            {suggestions.related.length > 0 && (
+              <div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-primary-50 text-primary-600 rounded-lg">
+                    <FiTag size={20} />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800">You Might Also Like</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {suggestions.related.map(product => (
+                    <ProductCard key={product._id} product={product} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

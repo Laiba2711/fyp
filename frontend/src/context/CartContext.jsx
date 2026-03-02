@@ -63,7 +63,12 @@ export const CartProvider = ({ children }) => {
         setLoading(false);
       }
     } else {
-      // Guest cart
+      // Guest cart stock check
+      if (product.stock < quantity) {
+        toast.error('Product is out of stock');
+        return;
+      }
+
       const newItem = {
         _id: `${product._id}-${size}-${color}-${Date.now()}`,
         product,
@@ -82,6 +87,11 @@ export const CartProvider = ({ children }) => {
 
       let newItems;
       if (existingIndex > -1) {
+        // Check stock for increment
+        if (product.stock < cart.items[existingIndex].quantity + quantity) {
+          toast.error('Not enough stock available');
+          return;
+        }
         newItems = cart.items.map((item, index) =>
           index === existingIndex
             ? { ...item, quantity: item.quantity + quantity }
@@ -116,9 +126,16 @@ export const CartProvider = ({ children }) => {
     } else {
       const newItems = quantity <= 0
         ? cart.items.filter((item) => item._id !== itemId)
-        : cart.items.map((item) =>
-            item._id === itemId ? { ...item, quantity } : item
-          );
+        : cart.items.map((item) => {
+          if (item._id === itemId) {
+            if (item.product.stock < quantity) {
+              toast.error('Not enough stock available');
+              return item;
+            }
+            return { ...item, quantity };
+          }
+          return item;
+        });
 
       const newCart = {
         items: newItems,

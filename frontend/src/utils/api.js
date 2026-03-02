@@ -116,6 +116,9 @@ export const productsAPI = {
   getByTag: (tag) => api.get(`/products/tag/${tag}`),
   getByBrand: (brand) => api.get(`/products/brand/${brand}`),
   searchAdvanced: (params) => api.get('/products/search/advanced', { params }),
+  smartSearch: (params) => api.get('/products/smart-search', { params }),
+  getSuggestions: (params) => api.get('/products/search/suggestions', { params }),
+  getSmartSuggestions: (id) => api.get(`/products/${id}/smart-suggestions`),
 };
 
 // Cart API
@@ -135,6 +138,16 @@ export const ordersAPI = {
   getAll: (params) => api.get('/orders', { params }),
   updateStatus: (id, data) => api.put(`/orders/${id}/status`, data),
   getStats: () => api.get('/orders/admin/stats'),
+};
+
+// Analytics API
+export const analyticsAPI = {
+  getSearchStats: (days) => api.get('/analytics/search/stats', { params: { days } }),
+  getSalesStats: (days) => api.get('/analytics/sales/stats', { params: { days } }),
+  // Reporting
+  getSalesReport: (params) => api.get('/admin/reports/sales', { params, responseType: 'blob' }),
+  getCityReport: () => api.get('/admin/reports/city', { responseType: 'blob' }),
+  getAbandonedReport: () => api.get('/admin/reports/abandoned', { responseType: 'blob' }),
 };
 
 export default api;

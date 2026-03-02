@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiCreditCard, FiTruck, FiCheck, FiShield } from 'react-icons/fi';
 import { useCart } from '../../context/CartContext';
@@ -48,7 +48,7 @@ const Checkout = () => {
         shippingAddress,
         paymentMethod,
       });
-      
+
       await clearCart();
       toast.success('Order placed successfully!');
       navigate(`/order/${data._id}`);
@@ -59,8 +59,13 @@ const Checkout = () => {
     }
   };
 
+  useEffect(() => {
+    if (cart.items.length === 0) {
+      navigate('/cart');
+    }
+  }, [cart, navigate]);
+
   if (cart.items.length === 0) {
-    navigate('/cart');
     return null;
   }
 

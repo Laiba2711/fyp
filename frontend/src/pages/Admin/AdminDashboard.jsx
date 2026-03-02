@@ -1,22 +1,27 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FiPackage, FiUsers, FiDollarSign, FiShoppingBag, FiPlus, FiEdit2, FiTrash2, FiEye } from 'react-icons/fi';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { FiPackage, FiUsers, FiDollarSign, FiShoppingBag, FiPlus, FiEdit2, FiTrash2, FiEye, FiActivity, FiTrendingUp, FiFileText } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import { productsAPI, ordersAPI, authAPI } from '../../utils/api';
+import SearchAnalytics from './SearchAnalytics';
+import SalesAnalytics from './SalesAnalytics';
+import Reports from './Reports';
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('overview');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(location.state?.activeTab || 'overview');
   const [stats, setStats] = useState({});
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const productFormRef = useRef(null);
 
   // Product form state
-  const [showProductForm, setShowProductForm] = useState(false);
+  const [showProductForm, setShowProductForm] = useState(location.state?.showProductForm || false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [productForm, setProductForm] = useState({
     name: '',
@@ -33,11 +38,18 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (!isAdmin) {
-      navigate('/');
+      navigate('/admin/login');
       return;
     }
     fetchData();
-  }, [isAdmin, navigate]);
+
+    if (location.state) {
+      window.history.replaceState({}, document.title);
+      if (location.state.showProductForm) {
+        scrollToForm();
+      }
+    }
+  }, [isAdmin, navigate, location]);
 
   const fetchData = async () => {
     try {
@@ -58,6 +70,12 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const scrollToForm = () => {
+    setTimeout(() => {
+      productFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleProductSubmit = async (e) => {
@@ -104,6 +122,7 @@ const AdminDashboard = () => {
       featured: product.featured || false,
     });
     setShowProductForm(true);
+    scrollToForm();
   };
 
   const handleDeleteProduct = async (id) => {
@@ -165,18 +184,20 @@ const AdminDashboard = () => {
           <nav className="space-y-2">
             {[
               { id: 'overview', label: 'Overview', icon: FiDollarSign },
+              { id: 'sales', label: 'Sales Analytics', icon: FiTrendingUp },
+              { id: 'reports', label: 'Reports', icon: FiFileText },
               { id: 'products', label: 'Products', icon: FiPackage },
               { id: 'orders', label: 'Orders', icon: FiShoppingBag },
               { id: 'users', label: 'Users', icon: FiUsers },
+              { id: 'analytics', label: 'Search Analytics', icon: FiActivity },
             ].map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  activeTab === item.id
-                    ? 'bg-primary-500 text-white'
-                    : 'text-gray-400 hover:bg-white/10'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === item.id
+                  ? 'bg-primary-500 text-white'
+                  : 'text-gray-400 hover:bg-white/10'
+                  }`}
               >
                 <item.icon /> {item.label}
               </button>
@@ -194,9 +215,12 @@ const AdminDashboard = () => {
               className="w-full p-3 border border-gray-200 rounded-lg"
             >
               <option value="overview">Overview</option>
+              <option value="sales">Sales Analytics</option>
+              <option value="reports">Reports</option>
               <option value="products">Products</option>
               <option value="orders">Orders</option>
               <option value="users">Users</option>
+              <option value="analytics">Search Analytics</option>
             </select>
           </div>
 
@@ -210,7 +234,7 @@ const AdminDashboard = () => {
               {activeTab === 'overview' && (
                 <div>
                   <h1 className="text-2xl font-bold text-gray-800 mb-6">Dashboard Overview</h1>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div className="bg-white rounded-xl p-6 shadow-sm">
                       <div className="flex items-center justify-between">
@@ -296,11 +320,10 @@ const AdminDashboard = () => {
                               </div>
                               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full ${
-                                    status === 'pending' ? 'bg-yellow-400' :
+                                  className={`h-full rounded-full ${status === 'pending' ? 'bg-yellow-400' :
                                     status === 'processing' ? 'bg-blue-400' :
-                                    status === 'shipped' ? 'bg-purple-400' : 'bg-green-400'
-                                  }`}
+                                      status === 'shipped' ? 'bg-purple-400' : 'bg-green-400'
+                                    }`}
                                   style={{ width: `${percentage}%` }}
                                 ></div>
                               </div>
@@ -319,7 +342,7 @@ const AdminDashboard = () => {
                   <div className="flex items-center justify-between mb-6">
                     <h1 className="text-2xl font-bold text-gray-800">Products</h1>
                     <button
-                      onClick={() => { setShowProductForm(true); setEditingProduct(null); resetProductForm(); }}
+                      onClick={() => { setShowProductForm(true); setEditingProduct(null); resetProductForm(); scrollToForm(); }}
                       className="btn btn-primary"
                     >
                       <FiPlus /> Add Product
@@ -327,7 +350,7 @@ const AdminDashboard = () => {
                   </div>
 
                   {showProductForm && (
-                    <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
+                    <div ref={productFormRef} className="bg-white rounded-xl p-6 shadow-sm mb-6 scroll-mt-10">
                       <h3 className="font-semibold text-gray-800 mb-4">
                         {editingProduct ? 'Edit Product' : 'Add New Product'}
                       </h3>
@@ -453,10 +476,9 @@ const AdminDashboard = () => {
                               <td className="p-4 capitalize text-gray-600">{product.category}</td>
                               <td className="p-4 font-semibold text-gray-800">Rs. {product.price.toLocaleString()}</td>
                               <td className="p-4">
-                                <span className={`px-2 py-1 rounded-full text-sm ${
-                                  product.stock > 10 ? 'bg-green-100 text-green-700' :
+                                <span className={`px-2 py-1 rounded-full text-sm ${product.stock > 10 ? 'bg-green-100 text-green-700' :
                                   product.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                                }`}>
+                                  }`}>
                                   {product.stock}
                                 </span>
                               </td>
@@ -489,7 +511,7 @@ const AdminDashboard = () => {
               {activeTab === 'orders' && (
                 <div>
                   <h1 className="text-2xl font-bold text-gray-800 mb-6">Orders</h1>
-                  
+
                   <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
@@ -541,7 +563,7 @@ const AdminDashboard = () => {
               {activeTab === 'users' && (
                 <div>
                   <h1 className="text-2xl font-bold text-gray-800 mb-6">Users</h1>
-                  
+
                   <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
@@ -566,9 +588,8 @@ const AdminDashboard = () => {
                               </td>
                               <td className="p-4 text-gray-600">{u.email}</td>
                               <td className="p-4">
-                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                  u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
-                                }`}>
+                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                                  }`}>
                                   {u.role}
                                 </span>
                               </td>
@@ -581,6 +602,15 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               )}
+
+              {/* Search Analytics Tab */}
+              {activeTab === 'analytics' && <SearchAnalytics />}
+
+              {/* Sales Analytics Tab */}
+              {activeTab === 'sales' && <SalesAnalytics />}
+
+              {/* Reports Tab */}
+              {activeTab === 'reports' && <Reports />}
             </>
           )}
         </main>

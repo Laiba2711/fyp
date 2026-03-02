@@ -18,6 +18,7 @@ import Login from './pages/Auth/Login';
 import Profile from './pages/Profile/Profile';
 import Checkout from './pages/Checkout/Checkout';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import AdminLogin from './pages/Admin/AdminLogin';
 import Contact from './pages/Contact/Contact';
 import Faq from './pages/Faq/Faq';
 import Shipping from './pages/Shipping/Shipping';
@@ -49,6 +50,7 @@ function App() {
                   <Route path="/orders" element={<Profile />} />
                   <Route path="/wishlist" element={<Profile />} />
                   <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/admin/login" element={<AdminLogin />} />
                   <Route path="/admin/*" element={<AdminDashboard />} />
                   <Route path="/contact" element={<Contact />} />
                   <Route path="/faq" element={<Faq />} />
