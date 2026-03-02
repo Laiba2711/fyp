@@ -6,6 +6,7 @@ import { productsAPI, ordersAPI, authAPI } from '../../utils/api';
 import SearchAnalytics from './SearchAnalytics';
 import SalesAnalytics from './SalesAnalytics';
 import Reports from './Reports';
+import Tickets from './Tickets';
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
@@ -190,6 +191,7 @@ const AdminDashboard = () => {
               { id: 'orders', label: 'Orders', icon: FiShoppingBag },
               { id: 'users', label: 'Users', icon: FiUsers },
               { id: 'analytics', label: 'Search Analytics', icon: FiActivity },
+              { id: 'tickets', label: 'Support Tickets', icon: FiFileText },
             ].map((item) => (
               <button
                 key={item.id}
@@ -220,6 +222,7 @@ const AdminDashboard = () => {
               <option value="products">Products</option>
               <option value="orders">Orders</option>
               <option value="users">Users</option>
+              <option value="tickets">Support Tickets</option>
               <option value="analytics">Search Analytics</option>
             </select>
           </div>
@@ -602,6 +605,9 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               )}
+
+              {/* Support Tickets Tab */}
+              {activeTab === 'tickets' && <Tickets />}
 
               {/* Search Analytics Tab */}
               {activeTab === 'analytics' && <SearchAnalytics />}

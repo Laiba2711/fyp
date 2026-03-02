@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiUser, FiMail, FiPhone, FiMapPin, FiEdit2, FiShoppingBag, FiHeart, FiLogOut } from 'react-icons/fi';
+import { FiUser, FiMail, FiPhone, FiMapPin, FiEdit2, FiShoppingBag, FiHeart, FiLogOut, FiFileText } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
-import { authAPI, ordersAPI } from '../../utils/api';
+import { authAPI, ordersAPI, chatAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const Profile = () => {
@@ -10,6 +10,9 @@ const Profile = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   const [orders, setOrders] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [replyText, setReplyText] = useState('');
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -35,6 +38,9 @@ const Profile = () => {
     if (activeTab === 'orders') {
       fetchOrders();
     }
+    if (activeTab === 'tickets') {
+      fetchTickets();
+    }
   }, [activeTab]);
 
   const fetchOrders = async () => {
@@ -46,6 +52,42 @@ const Profile = () => {
       console.error('Error fetching orders:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTickets = async () => {
+    try {
+      setLoading(true);
+      const res = await chatAPI.getMyTickets();
+      setTickets(res.data);
+    } catch (error) {
+      console.error('Error fetching tickets:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openTicket = async (id) => {
+    try {
+      setLoading(true);
+      const res = await chatAPI.getTicketById(id);
+      setSelectedTicket(res.data);
+    } catch (error) {
+      console.error('Error opening ticket:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendReply = async () => {
+    if (!replyText.trim() || !selectedTicket) return;
+    try {
+      await chatAPI.postTicketMessage(selectedTicket.ticket._id, { message: replyText });
+      setReplyText('');
+      openTicket(selectedTicket.ticket._id);
+      fetchTickets();
+    } catch (error) {
+      console.error('Error sending reply:', error);
     }
   };
 
@@ -136,6 +178,14 @@ const Profile = () => {
                   }`}
                 >
                   <FiHeart /> Wishlist
+                </button>
+                <button
+                  onClick={() => setActiveTab('tickets')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                    activeTab === 'tickets' ? 'bg-primary-50 text-primary-500' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <FiFileText /> Support Tickets
                 </button>
                 <button
                   onClick={handleLogout}
@@ -360,6 +410,77 @@ const Profile = () => {
                     <Link to="/products" className="btn btn-primary mt-4">
                       Start Shopping
                     </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'tickets' && (
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h2 className="text-xl font-bold mb-4">My Support Tickets</h2>
+                {loading ? (
+                  <p>Loading tickets…</p>
+                ) : (
+                  <div className="md:flex gap-6">
+                    <ul className="md:w-1/3 space-y-2">
+                      {tickets.map(t => (
+                        <li
+                          key={t._id}
+                          className="p-3 border rounded cursor-pointer hover:bg-gray-100"
+                          onClick={() => openTicket(t._id)}
+                        >
+                          <div className="font-semibold">{t.subject}</div>
+                          <div className="text-sm text-gray-500 capitalize">{t.category.replace('_',' ')}</div>
+                          <div className="text-xs text-gray-400">{t.status}</div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="md:flex-1">
+                      {selectedTicket ? (
+                        <div>
+                          <h3 className="text-lg font-semibold mb-2">{selectedTicket.ticket.subject}</h3>
+                          <p className="mb-4">{selectedTicket.ticket.description}</p>
+                          {selectedTicket.ticket.attachments && selectedTicket.ticket.attachments.length > 0 && (
+                            <div className="mb-4">
+                              <p className="font-medium">Attachments:</p>
+                              <ul className="list-disc list-inside">
+                                {selectedTicket.ticket.attachments.map((att, idx) => (
+                                  <li key={idx}>
+                                    <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                                      {att.filename}
+                                    </a>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          <p className="text-sm text-gray-500">Status: {selectedTicket.ticket.status}</p>
+
+                          {/* conversation messages */}
+                          <div className="mt-4 space-y-2 max-h-64 overflow-auto">
+                            {selectedTicket.messages.map(m => (
+                              <div key={m._id} className={`p-2 rounded ${m.sender==='admin' ? 'bg-blue-100 ml-auto' : 'bg-gray-100'}`}>
+                                <div className="text-sm">{m.message}</div>
+                                <div className="text-[10px] text-gray-500">{new Date(m.createdAt).toLocaleString()}</div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="mt-4 flex gap-2">
+                            <input
+                              type="text"
+                              value={replyText}
+                              onChange={e => setReplyText(e.target.value)}
+                              className="flex-1 border rounded px-2 py-1"
+                              placeholder="Type a reply..."
+                            />
+                            <button onClick={sendReply} className="bg-indigo-500 text-white px-3 py-1 rounded">Send</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p>Select a ticket to view details</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

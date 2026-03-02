@@ -150,4 +150,37 @@ export const analyticsAPI = {
   getAbandonedReport: () => api.get('/admin/reports/abandoned', { responseType: 'blob' }),
 };
 
+// Chat API (Chatbot)
+export const chatAPI = {
+  sendMessage: (data) => api.post('/chat/message', data),
+  getHistory: (params) => api.get('/chat/history', { params }),
+  getHistoryBySession: (sessionId) => api.get(`/chat/history/${sessionId}`),
+  markFAQHelpful: (faqId, helpful) => api.post(`/chat/faq/${faqId}/helpful`, { helpful }),
+  getAllFAQs: (params) => api.get('/chat/faqs', { params }),
+  getFAQById: (id) => api.get(`/chat/faqs/${id}`),
+  createTicket: (data) => {
+    // supports JSON or FormData (with attachments)
+    if (data instanceof FormData) {
+      return api.post('/chat/ticket', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+    }
+    return api.post('/chat/ticket', data);
+  },
+  getMyTickets: () => api.get('/chat/tickets/user'),
+  getTicketById: (id) => api.get(`/chat/tickets/${id}`),
+  postTicketMessage: (ticketId, data) => api.post(`/chat/tickets/${ticketId}/message`, data),
+  // Order tracking endpoints
+  trackOrder: (data) => api.post('/chat/track-order', data),
+  getOrderById: (orderId) => api.get(`/chat/order/${orderId}`),
+  getOrderByIdUser: (orderId) => api.get(`/chat/order/${orderId}/user`),
+  // Admin endpoints
+  getAllTickets: (params) => api.get('/chat/tickets/admin', { params }),
+  updateTicketStatus: (id, data) => api.put(`/chat/tickets/${id}/status`, data),
+  createFAQ: (data) => api.post('/chat/faqs/admin/create', data),
+  updateFAQ: (id, data) => api.put(`/chat/faqs/${id}/admin/update`, data),
+  deleteFAQ: (id) => api.delete(`/chat/faqs/${id}/admin/delete`, data),
+  // Order tracking helpers
+  getOrderPublic: (orderId) => api.get(`/chat/order/${orderId}`),
+  getOrderPrivate: (orderId) => api.get(`/chat/order/${orderId}/user`),
+};
+
 export default api;

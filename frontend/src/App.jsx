@@ -27,6 +27,7 @@ import SizeGuide from './pages/SizeGuide/SizeGuide';
 import ForgotPassword from './pages/ForgotPassword/ForgotPassword';
 import Terms from './pages/Terms/Terms';
 import Privacy from './pages/Privacy/Privacy';
+import Support from './pages/Support/Support';
 
 import './App.css';
 
@@ -60,6 +61,7 @@ function App() {
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/terms" element={<Terms />} />
                   <Route path="/privacy" element={<Privacy />} />
+                  <Route path="/support" element={<Support />} />
                 </Routes>
               </main>
               <Footer />
