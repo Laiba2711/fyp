@@ -248,4 +248,4 @@ class Chatbot {
   }
 }
 
-module.exports = ChatBot;
+module.exports = Chatbot;
